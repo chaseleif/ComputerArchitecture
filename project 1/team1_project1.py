@@ -21,15 +21,6 @@ def twoscbinarytexttodecimal(binarytext):
     return numba
 
 
-def regnumba(binarytext):
-    numba = 0
-    for c in binarytext:
-        numba = numba*2 + int(c)
-    if numba < 32:
-        return numba
-    return -1
-
-
 def main():
     fullmachinecode = [line.rstrip() for line in open(sys.argv[1], 'rb')]
 
@@ -105,14 +96,13 @@ def main():
 
     for i in range(len(fullmachinecode)):
         if i > textend:
-            print fullmachinecode[i],
-            print str(i * 4 + 96) + "\t",
+            print fullmachinecode[i] + "\t\t" + str(i * 4 + 96) + "\t\t",
             print (str(twoscbinarytexttodecimal(fullmachinecode[i])) if fullmachinecode[i][0] == '1'
                    else binarytexttodecimal(fullmachinecode[i])),
             print "\n",
             continue
         if instructionformat[i] == 'B':
-            print fullmachinecode[i][0:6] + " " + fullmachinecode[i][6:32],
+            print fullmachinecode[i][0:6] + " " + fullmachinecode[i][6:32] + "   ",
         elif instructionformat[i] == 'R':
             print fullmachinecode[i][0:11] + " " + fullmachinecode[i][11:16],
             print fullmachinecode[i][16:22] + " " + fullmachinecode[i][22:27],
@@ -126,7 +116,7 @@ def main():
             print fullmachinecode[i][27:32],
         elif instructionformat[i] == 'CB':
             print fullmachinecode[i][0:8] + " " + fullmachinecode[i][8:27],
-            print fullmachinecode[i][27:32],
+            print fullmachinecode[i][27:32] + "    ",
         elif instructionformat[i] == 'IM':
             print fullmachinecode[i][0:9] + " " + fullmachinecode[i][9:11],
             print fullmachinecode[i][11:27] + " " + fullmachinecode[i][27:32],
@@ -135,16 +125,16 @@ def main():
             print fullmachinecode[i][11:16] + " " + fullmachinecode[i][16:21],
             print fullmachinecode[i][21:26] + " " + fullmachinecode[i][26:32],
         elif instructionformat[i] == 'NOP':
-            print fullmachinecode[i],
+            print fullmachinecode[i] + " " + instructionformat[i]
             continue
         else:
             print "something bad\t,"
-        print str(i*4+96) + "\t",
+        print "\t" + str(i*4+96) + "\t\t",
 
         if instructionformat[i] == 'B':
-            print "B #" + str(binarytexttodecimal(fullmachinecode[i][6:32]))
+            print "B\t\t#" + str(binarytexttodecimal(fullmachinecode[i][6:32]))
         elif instructionformat[i] == 'R':
-            print theinstruction[i] + " R" + str(binarytexttodecimal(fullmachinecode[i][27:32])) + ",",
+            print theinstruction[i] + "\t\tR" + str(binarytexttodecimal(fullmachinecode[i][27:32])) + ",",
             print "R" + str(binarytexttodecimal(fullmachinecode[i][22:27])) + ",",
             if theinstruction[i] == 'LSL' or theinstruction[i] == 'LSR':
                 if fullmachinecode[i][16] == '0':
@@ -154,19 +144,19 @@ def main():
             else:
                 print "R" + str(binarytexttodecimal(fullmachinecode[i][11:16]))
         elif instructionformat[i] == 'I':
-            print (theinstruction[i] + " R" + str(binarytexttodecimal(fullmachinecode[i][27:32])) + ", R" +
+            print (theinstruction[i] + "\tR" + str(binarytexttodecimal(fullmachinecode[i][27:32])) + ", R" +
                    str(binarytexttodecimal(fullmachinecode[i][22:27])) + ", #" +
                    str(binarytexttodecimal(fullmachinecode[i][10:22])))
         elif instructionformat[i] == 'D':
-            print theinstruction[i] + " R" + str(binarytexttodecimal(fullmachinecode[i][27:32])) + ",",
+            print theinstruction[i] + "\tR" + str(binarytexttodecimal(fullmachinecode[i][27:32])) + ",",
             print "[R" + str(binarytexttodecimal(fullmachinecode[i][22:27])) + ",",
             print "#" + str(binarytexttodecimal(fullmachinecode[i][11:20])) + "]"
         elif instructionformat[i] == 'CB':
-            print theinstruction[i] + " R" + str(binarytexttodecimal(fullmachinecode[i][27:32])) + ",",
+            print theinstruction[i] + " \tR" + str(binarytexttodecimal(fullmachinecode[i][27:32])) + ",",
             print "#" + str(binarytexttodecimal(fullmachinecode[i][8:27]))
 #  need to find out IM opcode / MOVZ/MOVK details!!! #
         elif instructionformat[i] == 'IM':
-            print theinstruction[i] + " R" + str(binarytexttodecimal(fullmachinecode[i][27:32])) + ",",
+            print theinstruction[i] + "\tR" + str(binarytexttodecimal(fullmachinecode[i][27:32])) + ",",
             print str(binarytexttodecimal(fullmachinecode[i][11:27]))
         elif instructionformat[i] == 'BR':
             print "BREAK"
