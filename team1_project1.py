@@ -2,6 +2,7 @@
 
 import sys
 
+
 #  converts an unsigned binary text string into decimal
 def binarytexttodecimal(binarytext):
     numba = 0
@@ -9,13 +10,16 @@ def binarytexttodecimal(binarytext):
         numba = numba*2 + int(c)
     return numba
 
-#  converts a signed 2's complement binary text string to decimal
+
+#  converts a _signed_ and _negative_ 2's complement binary text string to decimal
+#  only call if the most significant digit is a ONE, this is only for negative 2C nums
 def twoscbinarytexttodecimal(binarytext):
     numba = 0
     for c in binarytext:
         numba = numba*2 + (0 if int(c) == 1 else 1)
     numba = (numba + 1) * -1
     return numba
+
 
 def main():
     fullmachinecode = [line.rstrip() for line in open(sys.argv[1], 'rb')]
@@ -24,8 +28,7 @@ def main():
     textend = 0
     instructionformat = []
     for i in range(len(fullmachinecode)):
-        opcodes.append(fullmachinecode[i][0:11])
-        opcodes[i] = binarytexttodecimal(opcodes[i])
+        opcodes.append(binarytexttodecimal(fullmachinecode[i][0:11]))
 #  text/data break
         if opcodes[i] == 2038:
             instructionformat.append('BR')
@@ -91,12 +94,30 @@ def main():
             print fullmachinecode[i][11:16] + " " + fullmachinecode[i][16:21] + " ",
             print fullmachinecode[i][21:26] + " " + fullmachinecode[i][26:32] + "\t",
         elif instructionformat[i] == 'NOP':
-            print fullmachinecode[i] + "\t" + str(i * 4 + 96) + "\tNOP\n",
+            print fullmachinecode[i] + "\t",
             continue
         else:
             print "something bad\t,"
         print str(i*4+96) + "\t",
-        print "\n",
+
+        if instructionformat[i] == 'B':
+            print "some bullshit"
+        elif instructionformat[i] == 'R':
+            print "some bullshit"
+        elif instructionformat[i] == 'I':
+            print "some bullshit"
+        elif instructionformat[i] == 'D':
+            print "some bullshit"
+        elif instructionformat[i] == 'CB':
+            print "some bullshit"
+        elif instructionformat[i] == 'IM':
+            print "some bullshit"
+        elif instructionformat[i] == 'BR':
+            print "BREAK MOTHERFUCKER"
+        elif instructionformat[i] == 'NOP':
+            print "NOP MOTHERFUCKER"
+        else:
+            print "something bad\t,"
 
 
 #  function called when script ran from command line
