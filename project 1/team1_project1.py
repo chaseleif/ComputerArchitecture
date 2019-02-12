@@ -141,7 +141,7 @@ class Decompiler:
                 print >> outfile, fullmachinecode[i][11:16] + " " + fullmachinecode[i][16:21],
                 print >> outfile, fullmachinecode[i][21:26] + " " + fullmachinecode[i][26:32],
             elif instructionformat[i] == 'NOP':
-                print >> outfile, fullmachinecode[i] + " " + instructionformat[i]
+                print >> outfile, fullmachinecode[i] + "\t" + str(i * 4 + 96) + "\tNOP"
                 continue
             else:
                 print >> outfile, "something bad\t,"
