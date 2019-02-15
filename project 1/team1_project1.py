@@ -32,11 +32,17 @@ class Decompiler:
         pass
 
     @staticmethod
-    def decompile(infile):
-        fullmachinecode = [line.rstrip() for line in open(infile, 'rb')]
+    def decompile(infilename,outfilename):
+        if infilename == "" or outfilename == "":
+            return
+        fullmachinecode = [line.rstrip() for line in open(infilename, 'rb')]
+
+        for i in range(len(fullmachinecode)):
+            binarystring = fullmachinecode[i]
+            binarystring >> 22
+            print binarystring
+
 #  opened input file, now get our output filename
-        textend = infile.find('.')
-        outfilename = infile[:textend] + "out_dis.txt"
         outfile = open(outfilename, 'w')
 
         opcodes = []
@@ -113,9 +119,10 @@ class Decompiler:
         for i in range(len(fullmachinecode)):
             if i > textend:
                 print >> outfile, fullmachinecode[i] + "\t" + str(i * 4 + 96) + "\t",
-                print >> outfile, (str(twoscbinarytexttodecimal(fullmachinecode[i])) if fullmachinecode[i][0] == '1'
-                       else binarytexttodecimal(fullmachinecode[i])),
-                print >> outfile, "\n",
+                if fullmachinecode[i][0] == '1':
+                    print >> outfile, (str(twoscbinarytexttodecimal(fullmachinecode[i])))
+                else:
+                    print >> outfile, (str(binarytexttodecimal(fullmachinecode[i])))
                 continue
             if instructionformat[i] == 'B':
                 print >> outfile, fullmachinecode[i][0:6] + " " + fullmachinecode[i][6:32] + "   ",
@@ -188,4 +195,12 @@ class Decompiler:
 #  uses first arg, sys.argv[1], as input filepath
 #  opens that file and 'decompiles' machine code to asm
 if __name__ == "__main__":
-    Decompiler.decompile(sys.argv[1])
+    inputFileName = None
+    outputFileName = None
+    for i in range(len(sys.argv)):
+        if sys.argv[i] == '-i' and i < (len(sys.argv) - 1):
+            inputFileName = sys.argv[i + 1]
+            print inputFileName
+        elif sys.argv[i] == '-o' and i < (len(sys.argv) - 1):
+            outputFileName = sys.argv[i + 1]
+    Decompiler.decompile(inputFileName,outputFileName)
