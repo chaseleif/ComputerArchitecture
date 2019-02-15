@@ -38,8 +38,8 @@ class Decompiler:
         fullmachinecode = [line.rstrip() for line in open(infilename, 'rb')]
 
         for i in range(len(fullmachinecode)):
-            binarystring = fullmachinecode[i]
-            binarystring >> 22
+            binarystring = int(fullmachinecode[i], 2)
+            binarystring >>= 22
             print binarystring
 
 #  opened input file, now get our output filename
