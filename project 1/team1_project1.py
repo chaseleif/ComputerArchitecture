@@ -8,22 +8,13 @@
 import sys
 
 
-#  converts an unsigned binary text string into decimal
-def binarytexttodecimal(binarytext):
-    numba = 0
-    for c in binarytext:
-        numba = numba*2 + int(c)
-    return numba
-
-
-#  converts a _signed_ and _negative_ 2's complement binary text string to decimal
-#  only call if the most significant digit is a ONE, this is only for negative 2C nums
-def twoscbinarytexttodecimal(binarytext):
-    numba = 0
-    for c in binarytext:
-        numba = numba*2 + (0 if int(c) == 1 else 1)
-    numba = (numba + 1) * -1
-    return numba
+def gettwoscomplement(binarystring):
+    returnval = 0
+    for digit in binarystring:
+        returnval *= 2
+        if digit is '0':
+            returnval += 1
+    return -(returnval + 1)
 
 
 class Decompiler:
@@ -32,162 +23,175 @@ class Decompiler:
         pass
 
     @staticmethod
-    def decompile(infilename,outfilename):
+    def decompile(infilename, outfilename):
         if infilename == "" or outfilename == "":
             return
         fullmachinecode = [line.rstrip() for line in open(infilename, 'rb')]
 
-        for i in range(len(fullmachinecode)):
-            binarystring = int(fullmachinecode[i], 2)
-            binarystring >>= 22
-            print binarystring
+        binarystring = [None] * len(fullmachinecode)
+        opcodes = [None] * len(fullmachinecode)
+        instructionformat = [None] * len(fullmachinecode)
+        instructions = [None] * len(fullmachinecode)
+        rdarray = [None] * len(fullmachinecode)
+        rnarray = [None] * len(fullmachinecode)
+        rmarray = [None] * len(fullmachinecode)
+        shamtarray = [None] * len(fullmachinecode)
+        immarray = [None] * len(fullmachinecode)
+        addrarray = [None] * len(fullmachinecode)
+        offsarray = [None] * len(fullmachinecode)
 
-#  opened input file, now get our output filename
-        outfile = open(outfilename, 'w')
+        datastartindex = None
 
-        opcodes = []
-        textend = 0
-        instructionformat = []
-        theinstruction = []
         for i in range(len(fullmachinecode)):
-            opcodes.append(binarytexttodecimal(fullmachinecode[i][0:11]))
-            theinstruction.append('')
-    #  text/data break
+            opcodes[i] = binarystring[i] = int(fullmachinecode[i], 2)
+
+            if datastartindex is not None:
+                continue
+
+            opcodes[i] >>= 21
+# BR
             if opcodes[i] == 2038:
-                instructionformat.append('BR')
-                textend = i
+                instructionformat[i] = 'BR'
+                datastartindex = i
                 break
-    # B - format
-            if 160 <= opcodes[i] <= 191:
-                instructionformat.append('B')
-    # R - format
+# B
+            elif 160 <= opcodes[i] <= 191:
+                instructionformat[i] = 'B'
+                instructions[i] = 'B'
+                addrarray[i] = int(fullmachinecode[i], 2) & 67108863
+# R
             elif (opcodes[i] == 1112 or opcodes[i] == 1624 or
                   opcodes[i] == 1691 or opcodes[i] == 1690 or
                   opcodes[i] == 1104 or opcodes[i] == 1360 or opcodes[i] == 1872):
-                instructionformat.append('R')
-                if opcodes[i] == 1112:
-                    theinstruction[i] = 'ADD'
-                elif opcodes[i] == 1624:
-                    theinstruction[i] = 'SUB'
-                elif opcodes[i] == 1691:
-                    theinstruction[i] = 'LSL'
-                elif opcodes[i] == 1690:
-                    theinstruction[i] = 'LSR'
-                elif opcodes[i] == 1104:
-                    theinstruction[i] = 'AND'
-                elif opcodes[i] == 1360:
-                    theinstruction[i] = 'ORR'
-                elif opcodes[i] == 1872:
-                    theinstruction[i] = 'EOR'
-    # I - format
+                instructionformat[i] = 'R'
+                rdarray[i] = int(fullmachinecode[i], 2) & 31
+                rnarray[i] = int(fullmachinecode[i], 2) & 992
+                rnarray[i] >>= 5
+                if 1690 <= opcodes[i] <= 1691:
+                    shamtarray[i] = int(fullmachinecode[i], 2) & 64512
+                    shamtarray[i] >>= 10
+                    if opcodes[i] == 1690:
+                        instructions[i] = 'LSR'
+                    else:
+                        instructions[i] = 'LSL'
+                else:
+                    rmarray[i] = int(fullmachinecode[i], 2) & 2031616
+                    rmarray[i] >>= 16
+                    if opcodes[i] == 1112:
+                        instructions[i] = 'ADD'
+                    elif opcodes[i] == 1624:
+                        instructions[i] = 'SUB'
+                    elif opcodes[i] == 1104:
+                        instructions[i] = 'AND'
+                    elif opcodes[i] == 1360:
+                        instructions[i] = 'ORR'
+                    elif opcodes[i] == 1872:
+                        instructions[i] = 'EOR'
+# I
             elif (1160 <= opcodes[i] <= 1161 or
                   1672 <= opcodes[i] <= 1673):
-                instructionformat.append('I')
+                instructionformat[i] = 'I'
+                rdarray[i] = int(fullmachinecode[i], 2) & 31
+                rnarray[i] = int(fullmachinecode[i], 2) & 992
+                rnarray[i] >>= 5
+                immarray[i] = int(fullmachinecode[i], 2) & 4193280
+                immarray[i] >>= 10
+                if immarray[i] >> 11 > 0:
+                    immarray[i] = gettwoscomplement(fullmachinecode[i][10:22])
                 if 1160 <= opcodes[i] <= 1161:
-                    theinstruction[i] = 'ADDI'
+                    instructions[i] = 'ADDI'
                 elif 1672 <= opcodes[i] <= 1673:
-                    theinstruction[i] = 'SUBI'
-    # D - format
+                    instructions[i] = 'SUBI'
+# D
             elif opcodes[i] == 1986 or opcodes[i] == 1984:
-                instructionformat.append('D')
+                instructionformat[i] = 'D'
+                rdarray[i] = int(fullmachinecode[i], 2) & 31
+                rnarray[i] = int(fullmachinecode[i], 2) & 992
+                rnarray[i] >>= 5
+                addrarray[i] = int(fullmachinecode[i], 2) & 2093056
+                addrarray[i] >>= 12
                 if opcodes[i] == 1986:
-                    theinstruction[i] = 'LDUR'
+                    instructions[i] = 'LDUR'
                 else:
-                    theinstruction[i] = 'STUR'
-    #  CB - format
+                    instructions[i] = 'STUR'
+#  CB
             elif (1440 <= opcodes[i] <= 1447 or
                   1448 <= opcodes[i] <= 1455):
-                instructionformat.append('CB')
+                rdarray[i] = int(fullmachinecode[i], 2) & 31
+                offsarray[i] = int(fullmachinecode[i], 2) & 16777184
+                offsarray[i] >>= 5
+                instructionformat[i] = 'CB'
                 if 1440 <= opcodes[i] <= 1447:
-                    theinstruction[i] = 'CBZ'
+                    instructions[i] = 'CBZ'
                 else:
-                    theinstruction[i] = 'CBNZ'
-    # IM - format
+                    instructions[i] = 'CBNZ'
+# IM
             elif (1684 <= opcodes[i] <= 1687 or
                   1940 <= opcodes[i] <= 1943):
-                instructionformat.append('IM')
+                instructionformat[i] = 'IM'
+                rdarray[i] = int(fullmachinecode[i], 2) & 31
+                shamtarray[i] = int(fullmachinecode[i], 2) & 6291456
+                shamtarray[i] >>= 21
+                immarray[i] = int(fullmachinecode[i], 2) & 2097120
+                immarray[i] >>= 5
                 if 1684 <= opcodes[i] <= 1687:
-                    theinstruction[i] = 'MOVZ'
+                    instructions[i] = 'MOVZ'
                 else:
-                    theinstruction[i] = 'MOVK'
-    # NOP
+                    instructions[i] = 'MOVK'
+# NOP
             elif opcodes[i] == 0:
-                instructionformat.append('NOP')
-            else:
-                instructionformat.append('OTHER')
+                instructionformat[i] = 'NOP'
 
+#  now write the output file
+
+        outfile = open(outfilename, 'w')
+        memaddr = 92
         for i in range(len(fullmachinecode)):
-            if i > textend:
-                print >> outfile, fullmachinecode[i] + "\t" + str(i * 4 + 96) + "\t",
-                if fullmachinecode[i][0] == '1':
-                    print >> outfile, (str(twoscbinarytexttodecimal(fullmachinecode[i])))
+            memaddr += 4
+            outline = ""
+            if i > datastartindex:
+                outline += fullmachinecode[i] + "\t" + str(memaddr) + "\t"
+                if int(fullmachinecode[i], 2) >> 31 > 0:
+                    outline += str(gettwoscomplement(fullmachinecode[i]))
                 else:
-                    print >> outfile, (str(binarytexttodecimal(fullmachinecode[i])))
-                continue
-            if instructionformat[i] == 'B':
-                print >> outfile, fullmachinecode[i][0:6] + " " + fullmachinecode[i][6:32] + "   ",
-            elif instructionformat[i] == 'R':
-                print >> outfile, fullmachinecode[i][0:11] + " " + fullmachinecode[i][11:16],
-                print >> outfile, fullmachinecode[i][16:22] + " " + fullmachinecode[i][22:27],
-                print >> outfile, fullmachinecode[i][27:32],
-            elif instructionformat[i] == 'I':
-                print >> outfile, fullmachinecode[i][0:10] + " " + fullmachinecode[i][10:22],
-                print >> outfile, fullmachinecode[i][22:27] + " " + fullmachinecode[i][27:32],
-            elif instructionformat[i] == 'D':
-                print >> outfile, fullmachinecode[i][0:11] + " " + fullmachinecode[i][11:20],
-                print >> outfile, fullmachinecode[i][20:22] + " " + fullmachinecode[i][22:27],
-                print >> outfile, fullmachinecode[i][27:32],
-            elif instructionformat[i] == 'CB':
-                print >> outfile, fullmachinecode[i][0:8] + " " + fullmachinecode[i][8:27],
-                print >> outfile, fullmachinecode[i][27:32] + " ",
-            elif instructionformat[i] == 'IM':
-                print >> outfile, fullmachinecode[i][0:9] + " " + fullmachinecode[i][9:11],
-                print >> outfile, fullmachinecode[i][11:27] + " " + fullmachinecode[i][27:32],
-            elif instructionformat[i] == 'BR':
-                print >> outfile, fullmachinecode[i][0:8] + " " + fullmachinecode[i][8:11],
-                print >> outfile, fullmachinecode[i][11:16] + " " + fullmachinecode[i][16:21],
-                print >> outfile, fullmachinecode[i][21:26] + " " + fullmachinecode[i][26:32],
+                    outline += str(fullmachinecode[i])
+            elif instructionformat[i] is None:
+                outline += "Instruction not recognized at address: " + str(memaddr)
             elif instructionformat[i] == 'NOP':
-                print >> outfile, fullmachinecode[i] + "\t" + str(i * 4 + 96) + "\tNOP"
-                continue
-            else:
-                print >> outfile, "something bad\t,"
-            print >> outfile, "\t" + str(i*4+96) + "\t",
-
-            if instructionformat[i] == 'B':
-                print >> outfile, "B\t#" + str(binarytexttodecimal(fullmachinecode[i][6:32]))
+                outline += fullmachinecode[i] + "\t" + str(memaddr) + "\tNOP"
+            elif instructionformat[i] == 'B':
+                outline += fullmachinecode[i][0:6] + " " + fullmachinecode[i][6:32] + "\t"
+                outline += str(memaddr) + "\tB\t#" + str(addrarray[i])
             elif instructionformat[i] == 'R':
-                print >> outfile, theinstruction[i] + "\tR" + str(binarytexttodecimal(fullmachinecode[i][27:32])) + ",",
-                print >> outfile, "R" + str(binarytexttodecimal(fullmachinecode[i][22:27])) + ",",
-                if theinstruction[i] == 'LSL' or theinstruction[i] == 'LSR':
-                    if fullmachinecode[i][16] == '0':
-                        print >> outfile, "#" + str(binarytexttodecimal(fullmachinecode[i][16:22]))
-                    else:
-                        print >> outfile, "#" + str(twoscbinarytexttodecimal(fullmachinecode[i][16:22]))
+                outline += fullmachinecode[i][0:11] + " " + fullmachinecode[i][11:16] + " " + fullmachinecode[i][16:22]
+                outline += " " + fullmachinecode[i][22:27] + " " + fullmachinecode[i][27:32] + "\t" + str(memaddr)
+                outline += "\t" + str(instructions[i]) + "\tR" + str(rdarray[i]) + ", R" + str(rnarray[i]) + ", "
+                if instructions[i] == 'LSL' or instructions[i] == 'LSR':
+                    outline += "#" + str(shamtarray[i])
                 else:
-                    print >> outfile, "R" + str(binarytexttodecimal(fullmachinecode[i][11:16]))
+                    outline += "R" + str(rmarray[i])
             elif instructionformat[i] == 'I':
-                print >> outfile, (theinstruction[i] + "\tR" + str(binarytexttodecimal(fullmachinecode[i][27:32])) + ", R" +
-                       str(binarytexttodecimal(fullmachinecode[i][22:27])) + ","),
-                print >> outfile, ("#" + str(twoscbinarytexttodecimal(fullmachinecode[i][10:22])) if fullmachinecode[i][10] == '1'
-                       else "#" + str(binarytexttodecimal(fullmachinecode[i][10:22])))
+                outline += fullmachinecode[i][0:10] + " " + fullmachinecode[i][10:22] + " " + fullmachinecode[i][22:27]
+                outline += " " + fullmachinecode[i][27:32] + "\t" + str(memaddr) + "\t" + instructions[i] + "\tR"
+                outline += str(rdarray[i]) + ", R" + str(rnarray[i]) + ", #" + str(immarray[i])
             elif instructionformat[i] == 'D':
-                print >> outfile, theinstruction[i] + "\tR" + str(binarytexttodecimal(fullmachinecode[i][27:32])) + ",",
-                print >> outfile, "[R" + str(binarytexttodecimal(fullmachinecode[i][22:27])) + ",",
-                print >> outfile, "#" + str(binarytexttodecimal(fullmachinecode[i][11:20])) + "]"
+                outline += fullmachinecode[i][0:11] + " " + fullmachinecode[i][11:20] + " " + fullmachinecode[i][20:22]
+                outline += " " + fullmachinecode[i][22:27] + " " + fullmachinecode[i][27:32] + "\t" + str(memaddr)
+                outline += "\t" + instructions[i] + "\tR" + str(rdarray[i]) + ", [R" + str(rnarray[i]) + ", #"
+                outline += str(addrarray[i]) + "]"
             elif instructionformat[i] == 'CB':
-                print >> outfile, theinstruction[i] + " \tR" + str(binarytexttodecimal(fullmachinecode[i][27:32])) + ",",
-                print >> outfile, "#" + str(binarytexttodecimal(fullmachinecode[i][8:27]))
+                outline += fullmachinecode[i][0:8] + " " + fullmachinecode[i][8:27] + " " + fullmachinecode[i][27:32]
+                outline += "\t" + str(memaddr) + "\t" + instructions[i] + "\tR" + str(rdarray[i]) + ", #"
+                outline += str(offsarray[i])
             elif instructionformat[i] == 'IM':
-                print >> outfile, theinstruction[i] + "\tR" + str(binarytexttodecimal(fullmachinecode[i][27:32])) + ",",
-                print >> outfile, str(binarytexttodecimal(fullmachinecode[i][11:27])) + ",",
-                print >> outfile, "LSL " + str(16*binarytexttodecimal(fullmachinecode[i][9:11]))
+                outline += fullmachinecode[i][0:9] + " " + fullmachinecode[i][9:11] + " " + fullmachinecode[i][11:27]
+                outline += " " + fullmachinecode[i][27:32] + "\t" + str(memaddr) + "\t" + instructions[i] + "\tR"
+                outline += str(rdarray[i]) + ", " + str(immarray[i]) + ", LSL " + str(shamtarray[i] << 4)
             elif instructionformat[i] == 'BR':
-                print >> outfile, "BREAK"
-            elif instructionformat[i] == 'NOP':
-                print >> outfile, "NOP"
-            else:
-                print >> outfile, "something bad\t"
+                outline += fullmachinecode[i][0:8] + " " + fullmachinecode[i][8:11] + " " + fullmachinecode[i][11:16]
+                outline += " " + fullmachinecode[i][16:21] + " " + fullmachinecode[i][21:26] + " "
+                outline += fullmachinecode[i][26:32] + "\t" + str(memaddr) + "\tBREAK"
+            print >> outfile, outline
         outfile.close()
 
 
@@ -203,4 +207,4 @@ if __name__ == "__main__":
             print inputFileName
         elif sys.argv[i] == '-o' and i < (len(sys.argv) - 1):
             outputFileName = sys.argv[i + 1]
-    Decompiler.decompile(inputFileName,outputFileName)
+    Decompiler.decompile(inputFileName, outputFileName)
