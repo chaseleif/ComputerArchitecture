@@ -1,9 +1,8 @@
 #!/usr/bin/python
 #  team1_project1.py
 #  Chase Phelps and Trenton Hohle
+#  clp186           tah138
 #  this converts some machine code into LEGv8 asm
-#  input file is given as a command line argument
-#  output file is (infilename) + out_dis.txt
 
 import sys
 
@@ -14,6 +13,7 @@ def gettwoscomplement(binarystring):
         returnval *= 2
         if digit is '0':
             returnval += 1
+
     return -(returnval + 1)
 
 
@@ -23,12 +23,11 @@ class Decompiler:
         pass
 
     @staticmethod
-    def decompile(infilename, outfilename):
-        if infilename == "" or outfilename == "":
+    def run(infilename, outfilename):
+        if infilename is None or outfilename is None:
             return
         fullmachinecode = [line.rstrip() for line in open(infilename, 'rb')]
 
-        binarystring = [None] * len(fullmachinecode)
         opcodes = [None] * len(fullmachinecode)
         instructionformat = [None] * len(fullmachinecode)
         instructions = [None] * len(fullmachinecode)
@@ -43,23 +42,13 @@ class Decompiler:
         datastartindex = None
 
         for i in range(len(fullmachinecode)):
-            opcodes[i] = binarystring[i] = int(fullmachinecode[i], 2)
 
-            if datastartindex is not None:
-                continue
-
+            opcodes[i] = int(fullmachinecode[i], 2)
             opcodes[i] >>= 21
-# BR
-            if opcodes[i] == 2038:
-                instructionformat[i] = 'BR'
-                datastartindex = i
-                break
-# B
-            elif 160 <= opcodes[i] <= 191:
-                instructionformat[i] = 'B'
-                instructions[i] = 'B'
-                addrarray[i] = int(fullmachinecode[i], 2) & 67108863
-# R
+# NOP - nop
+            if opcodes[i] == 0:
+                instructionformat[i] = 'NOP'
+# R - register
             elif (opcodes[i] == 1112 or opcodes[i] == 1624 or
                   opcodes[i] == 1691 or opcodes[i] == 1690 or
                   opcodes[i] == 1104 or opcodes[i] == 1360 or opcodes[i] == 1872):
@@ -85,9 +74,9 @@ class Decompiler:
                         instructions[i] = 'AND'
                     elif opcodes[i] == 1360:
                         instructions[i] = 'ORR'
-                    elif opcodes[i] == 1872:
+                    else:
                         instructions[i] = 'EOR'
-# I
+# I - immediate
             elif (1160 <= opcodes[i] <= 1161 or
                   1672 <= opcodes[i] <= 1673):
                 instructionformat[i] = 'I'
@@ -100,9 +89,9 @@ class Decompiler:
                     immarray[i] = gettwoscomplement(fullmachinecode[i][10:22])
                 if 1160 <= opcodes[i] <= 1161:
                     instructions[i] = 'ADDI'
-                elif 1672 <= opcodes[i] <= 1673:
+                else:
                     instructions[i] = 'SUBI'
-# D
+# D - data load / store
             elif opcodes[i] == 1986 or opcodes[i] == 1984:
                 instructionformat[i] = 'D'
                 rdarray[i] = int(fullmachinecode[i], 2) & 31
@@ -114,18 +103,7 @@ class Decompiler:
                     instructions[i] = 'LDUR'
                 else:
                     instructions[i] = 'STUR'
-#  CB
-            elif (1440 <= opcodes[i] <= 1447 or
-                  1448 <= opcodes[i] <= 1455):
-                rdarray[i] = int(fullmachinecode[i], 2) & 31
-                offsarray[i] = int(fullmachinecode[i], 2) & 16777184
-                offsarray[i] >>= 5
-                instructionformat[i] = 'CB'
-                if 1440 <= opcodes[i] <= 1447:
-                    instructions[i] = 'CBZ'
-                else:
-                    instructions[i] = 'CBNZ'
-# IM
+# IM - move immediate / multiple
             elif (1684 <= opcodes[i] <= 1687 or
                   1940 <= opcodes[i] <= 1943):
                 instructionformat[i] = 'IM'
@@ -138,9 +116,28 @@ class Decompiler:
                     instructions[i] = 'MOVZ'
                 else:
                     instructions[i] = 'MOVK'
-# NOP
-            elif opcodes[i] == 0:
-                instructionformat[i] = 'NOP'
+# B - this is the branch instruction
+            elif 160 <= opcodes[i] <= 191:
+                instructionformat[i] = 'B'
+                instructions[i] = 'B'
+                addrarray[i] = int(fullmachinecode[i], 2) & 67108863
+#  CB - conditional branch
+            elif (1440 <= opcodes[i] <= 1447 or
+                  1448 <= opcodes[i] <= 1455):
+                rdarray[i] = int(fullmachinecode[i], 2) & 31
+                offsarray[i] = int(fullmachinecode[i], 2) & 16777184
+                offsarray[i] >>= 5
+                instructionformat[i] = 'CB'
+                if 1440 <= opcodes[i] <= 1447:
+                    instructions[i] = 'CBZ'
+                else:
+                    instructions[i] = 'CBNZ'
+# BR - this is the data segment break
+            elif opcodes[i] == 2038:
+                instructionformat[i] = 'BR'
+                datastartindex = i
+                break
+# for i in fullmachinecode[] end loop
 
 #  now write the output file
 
@@ -149,19 +146,20 @@ class Decompiler:
         for i in range(len(fullmachinecode)):
             memaddr += 4
             outline = ""
-            if i > datastartindex:
+# data segment
+            if datastartindex is not None and i > datastartindex:
                 outline += fullmachinecode[i] + "\t" + str(memaddr) + "\t"
                 if int(fullmachinecode[i], 2) >> 31 > 0:
                     outline += str(gettwoscomplement(fullmachinecode[i]))
                 else:
                     outline += str(fullmachinecode[i])
+# instruction format not set
             elif instructionformat[i] is None:
                 outline += "Instruction not recognized at address: " + str(memaddr)
+# NOP - nop
             elif instructionformat[i] == 'NOP':
                 outline += fullmachinecode[i] + "\t" + str(memaddr) + "\tNOP"
-            elif instructionformat[i] == 'B':
-                outline += fullmachinecode[i][0:6] + " " + fullmachinecode[i][6:32] + "\t"
-                outline += str(memaddr) + "\tB\t#" + str(addrarray[i])
+# R - register
             elif instructionformat[i] == 'R':
                 outline += fullmachinecode[i][0:11] + " " + fullmachinecode[i][11:16] + " " + fullmachinecode[i][16:22]
                 outline += " " + fullmachinecode[i][22:27] + " " + fullmachinecode[i][27:32] + "\t" + str(memaddr)
@@ -170,34 +168,46 @@ class Decompiler:
                     outline += "#" + str(shamtarray[i])
                 else:
                     outline += "R" + str(rmarray[i])
+# I - immediate
             elif instructionformat[i] == 'I':
                 outline += fullmachinecode[i][0:10] + " " + fullmachinecode[i][10:22] + " " + fullmachinecode[i][22:27]
                 outline += " " + fullmachinecode[i][27:32] + "\t" + str(memaddr) + "\t" + instructions[i] + "\tR"
                 outline += str(rdarray[i]) + ", R" + str(rnarray[i]) + ", #" + str(immarray[i])
+# D - data load / store
             elif instructionformat[i] == 'D':
                 outline += fullmachinecode[i][0:11] + " " + fullmachinecode[i][11:20] + " " + fullmachinecode[i][20:22]
                 outline += " " + fullmachinecode[i][22:27] + " " + fullmachinecode[i][27:32] + "\t" + str(memaddr)
                 outline += "\t" + instructions[i] + "\tR" + str(rdarray[i]) + ", [R" + str(rnarray[i]) + ", #"
                 outline += str(addrarray[i]) + "]"
-            elif instructionformat[i] == 'CB':
-                outline += fullmachinecode[i][0:8] + " " + fullmachinecode[i][8:27] + " " + fullmachinecode[i][27:32]
-                outline += "\t" + str(memaddr) + "\t" + instructions[i] + "\tR" + str(rdarray[i]) + ", #"
-                outline += str(offsarray[i])
+# IM - move immediate / multiple
             elif instructionformat[i] == 'IM':
                 outline += fullmachinecode[i][0:9] + " " + fullmachinecode[i][9:11] + " " + fullmachinecode[i][11:27]
                 outline += " " + fullmachinecode[i][27:32] + "\t" + str(memaddr) + "\t" + instructions[i] + "\tR"
                 outline += str(rdarray[i]) + ", " + str(immarray[i]) + ", LSL " + str(shamtarray[i] << 4)
+# B - this is the branch instruction
+            elif instructionformat[i] == 'B':
+                outline += fullmachinecode[i][0:6] + " " + fullmachinecode[i][6:32] + "\t"
+                outline += str(memaddr) + "\tB\t#" + str(addrarray[i])
+# CB - conditional branch
+            elif instructionformat[i] == 'CB':
+                outline += fullmachinecode[i][0:8] + " " + fullmachinecode[i][8:27] + " " + fullmachinecode[i][27:32]
+                outline += "\t" + str(memaddr) + "\t" + instructions[i] + "\tR" + str(rdarray[i]) + ", #"
+                outline += str(offsarray[i])
+# BR - this is the data segment break
             elif instructionformat[i] == 'BR':
                 outline += fullmachinecode[i][0:8] + " " + fullmachinecode[i][8:11] + " " + fullmachinecode[i][11:16]
                 outline += " " + fullmachinecode[i][16:21] + " " + fullmachinecode[i][21:26] + " "
                 outline += fullmachinecode[i][26:32] + "\t" + str(memaddr) + "\tBREAK"
+# write output line and restart loop if more lines to process
             print >> outfile, outline
+# for i in fullmachinecode[] end loop
+
         outfile.close()
 
 
-#  function called when script ran from command line
-#  uses first arg, sys.argv[1], as input filepath
-#  opens that file and 'decompiles' machine code to asm
+#  function called when script ran from command line and acts as a disassembler for machine code
+#  ran in the form: $ python team#_project1.py -i test3_bin.txt -o team1_out_dis.txt
+#  where test3_bin.txt is the input machine code text file that is read and team1_out_dis.txt is the dis output
 if __name__ == "__main__":
     inputFileName = None
     outputFileName = None
@@ -207,4 +217,4 @@ if __name__ == "__main__":
             print inputFileName
         elif sys.argv[i] == '-o' and i < (len(sys.argv) - 1):
             outputFileName = sys.argv[i + 1]
-    Decompiler.decompile(inputFileName, outputFileName)
+    Decompiler.run(inputFileName, outputFileName)
