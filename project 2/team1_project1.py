@@ -51,8 +51,8 @@ class Decompiler:
 # data
             if self.datastartindex is not None:
                 # dictionary, keyed by "actual" memory address
-                self.datasegment[(i * 4) + 96] = fullmachinecode[i]
-                self.dataendindex = i
+                self.dataendindex = (i * 4) + 96
+                self.datasegment[self.dataendindex] = fullmachinecode[i]
                 continue
 # text
             self.opcodes[i] = int(fullmachinecode[i], 2)
@@ -233,11 +233,10 @@ class Decompiler:
                 outline += "\t"
                 self.instrdisplaystring[i] = "BREAK"
 # write output line and restart loop until eof
-            if self.datastartindex is None or i <= self.datastartindex:
+            if self.datastartindex is None or i < self.datastartindex:
                 outline += self.instrdisplaystring[i]
             print >> outfile, outline
 
-        self.datastartindex += 1
         outfile.close()
         return self
 
