@@ -8,9 +8,143 @@
 import sys
 
 
+class Emulator:
+
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def run(asm):
+        # set counters and empty registers
+        cyclecounter = 0
+        pccounter = 0
+        registers = [0] * 32
+
+        outfile = open(asm.outfileprefix + "_sim.txt", 'w')
+
+        while asm.instructionformat[pccounter] != 'BR':
+            cyclecounter += 1
+            outline = "====================\n"
+            outline += "cycle: " + str(cyclecounter) + "\t" + str((pccounter * 4) + 96) + "\t"
+            outline += asm.instrdisplaystring[pccounter]
+            # flag for whether to update pc counter +1 or if branch is changing it
+            takebranch = 0
+            # R -> rdarray[], rnarray[], (rmarray[] or shamtarray[])
+            if asm.instructions[pccounter] == 'ADD':
+                registers[asm.rdarray[pccounter]] = registers[asm.rnarray[pccounter]] \
+                                                     + registers[asm.rmarray[pccounter]]
+            elif asm.instructions[pccounter] == 'SUB':
+                registers[asm.rdarray[pccounter]] = registers[asm.rnarray[pccounter]] \
+                                                     - registers[asm.rmarray[pccounter]]
+            elif asm.instructions[pccounter] == 'AND':
+                registers[asm.rdarray[pccounter]] = registers[asm.rnarray[pccounter]] \
+                                                     & registers[asm.rmarray[pccounter]]
+            elif asm.instructions[pccounter] == 'ORR':
+                registers[asm.rdarray[pccounter]] = registers[asm.rnarray[pccounter]] \
+                                                     | registers[asm.rmarray[pccounter]]
+            elif asm.instructions[pccounter] == 'EOR':
+                registers[asm.rdarray[pccounter]] = registers[asm.rnarray[pccounter]] \
+                                                     ^ registers[asm.rmarray[pccounter]]
+            elif asm.instructions[pccounter] == 'LSL':
+                registers[asm.rdarray[pccounter]] = registers[asm.rnarray[pccounter]] << asm.shamtarray[
+                    pccounter]
+            elif asm.instructions[pccounter] == 'LSR':
+                registers[asm.rdarray[pccounter]] = registers[asm.rnarray[pccounter]] >> asm.shamtarray[
+                    pccounter]
+            elif asm.instructions[pccounter] == 'ASR':
+                if registers[asm.rdarray[pccounter]] < 0:
+                    registers[asm.rdarray[pccounter]] = \
+                        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF >> asm.shamtarray[pccounter]
+                    registers[asm.rdarray[pccounter]] += \
+                        registers[asm.rnarray[pccounter]] >> asm.shamtarray[pccounter]
+                else:
+                    registers[asm.rdarray[pccounter]] = \
+                        registers[asm.rnarray[pccounter]] >> asm.shamtarray[pccounter]
+            # I-> rdarray[], rnarray[], immarray[]
+            elif asm.instructions[pccounter] == 'ADDI':
+                registers[asm.rdarray[pccounter]] = registers[asm.rnarray[pccounter]] + asm.immarray[pccounter]
+            elif asm.instructions[pccounter] == 'SUBI':
+                registers[asm.rdarray[pccounter]] = registers[asm.rnarray[pccounter]] - asm.immarray[pccounter]
+            # D-> rdarray[], rnarray[], addrarray[]
+            elif asm.instructions[pccounter] == 'LDUR':
+                jumpaddress = registers[asm.rnarray[pccounter]] + (asm.addrarray[pccounter] * 4)
+                if jumpaddress in asm.datasegment:
+                    registers[asm.rdarray[pccounter]] = asm.datasegment[jumpaddress]
+                else:
+                    registers[asm.rdarray[pccounter]] = 0
+            elif asm.instructions[pccounter] == 'STUR':
+                jumpaddress = registers[asm.rnarray[pccounter]] + (asm.addrarray[pccounter] * 4)
+                asm.datasegment[jumpaddress] = registers[asm.rdarray[pccounter]]
+                if jumpaddress > asm.dataendindex:
+                    asm.dataendindex = jumpaddress
+            # IM-> rdarray[], immarray[], shamtarray[]
+            elif asm.instructions[pccounter] == 'MOVZ':
+                registers[asm.rdarray[pccounter]] = asm.immarray[pccounter] << asm.shamtarray[pccounter]
+            elif asm.instructions[pccounter] == 'MOVK':
+                keepvalue = 0
+                if asm.shamtarray[pccounter] == 0:
+                    keepvalue = registers[asm.rdarray[pccounter]] & 0xFFFFFFFFFFFF0000
+                elif asm.shamtarray[pccounter] == 16:
+                    keepvalue = registers[asm.rdarray[pccounter]] & 0xFFFFFFFF0000FFFF
+                elif asm.shamtarray[pccounter] == 32:
+                    keepvalue = registers[asm.rdarray[pccounter]] & 0xFFFF0000FFFFFFFF
+                elif asm.shamtarray[pccounter] == 48:
+                    keepvalue = registers[asm.rdarray[pccounter]] & 0x0000FFFFFFFFFFFF
+                keepvalue += asm.immarray[pccounter] << asm.shamtarray[pccounter]
+                registers[asm.rdarray[pccounter]] = keepvalue
+            # B-> addrarray[]
+            elif asm.instructions[pccounter] == 'B':
+                pccounter += asm.addrarray[pccounter]
+                takebranch = 1
+            # CB-> rdarray[], offsarray[]
+            elif asm.instructions[pccounter] == 'CBZ' and registers[asm.rdarray[pccounter]] == 0:
+                pccounter += asm.offsarray[pccounter]
+                takebranch = 1
+            elif asm.instructions[pccounter] == 'CBNZ' and registers[asm.rdarray[pccounter]] != 0:
+                pccounter += asm.offsarray[pccounter]
+                takebranch = 1
+            if not takebranch:
+                pccounter += 1
+            # gather register info
+            outline += "\n\nregisters:\nr00:\t" + str(registers[0]) + "\t" + str(registers[1]) + "\t"
+            outline += str(registers[2]) + "\t" + str(registers[3]) + "\t" + str(registers[4]) + "\t"
+            outline += str(registers[5]) + "\t" + str(registers[6]) + "\t" + str(registers[7]) + "\n"
+            outline += "r08:\t" + str(registers[8]) + "\t" + str(registers[9]) + "\t"
+            outline += str(registers[10]) + "\t" + str(registers[11]) + "\t" + str(registers[12]) + "\t"
+            outline += str(registers[13]) + "\t" + str(registers[14]) + "\t" + str(registers[15]) + "\n"
+            outline += "r16:\t" + str(registers[16]) + "\t" + str(registers[17]) + "\t"
+            outline += str(registers[18]) + "\t" + str(registers[19]) + "\t" + str(registers[20]) + "\t"
+            outline += str(registers[21]) + "\t" + str(registers[22]) + "\t" + str(registers[23]) + "\n"
+            outline += "r24:\t" + str(registers[24]) + "\t" + str(registers[25]) + "\t"
+            outline += str(registers[26]) + "\t" + str(registers[27]) + "\t" + str(registers[28]) + "\t"
+            outline += str(registers[29]) + "\t" + str(registers[30]) + "\t" + str(registers[31]) + "\n\n"
+            # add data, if exists
+            if asm.dataendindex is not None:
+                outline += "data:\n"
+                datacounter = (asm.datastartindex * 4) + 96
+                while datacounter <= asm.dataendindex:
+                    outline += str(datacounter) + ": "
+                    donewline = 0
+                    while donewline <= 32:
+                        if donewline:
+                            outline += "\t"
+                        if (datacounter + donewline) in asm.datasegment:
+                            outline += str(asm.datasegment[datacounter + donewline])
+                        else:
+                            outline += "0"
+                        donewline += 4
+                    datacounter += 32
+                    outline += "\n"
+            # end row, print
+            print >> outfile, outline
+        outfile.close()
+
+
+
 class Decompiler:
 
     def __init__(self):
+        self.outfileprefix = None
         self.opcodes = [None]
         self.instructionformat = [None]
         self.instructions = [None]
@@ -29,6 +163,7 @@ class Decompiler:
     def run(self, infilename, outfilename):
         if infilename is None or outfilename is None:
             return
+        self.outfileprefix = outfilename
         outfilename += "_dis.txt"
         fullmachinecode = [line.rstrip() for line in open(infilename, 'rb')]
 
@@ -240,133 +375,6 @@ class Decompiler:
         outfile.close()
         return self
 
-    def emulator(self):
-
-        # set counters and empty registers
-        cyclecounter = 0
-        pccounter = 0
-        registers = [0] * 32
-        while self.instructionformat[pccounter] != 'BR':
-            cyclecounter += 1
-            outline = "====================\n"
-            outline += "cycle: " + str(cyclecounter) + "\t" + str((pccounter * 4) + 96) + "\t"
-            outline += self.instrdisplaystring[pccounter]
-# flag for whether to update pc counter +1 or if branch is changing it
-            takebranch = 0
-# R -> rdarray[], rnarray[], (rmarray[] or shamtarray[])
-            # TODO: Fix for the pos/neg mismatch for: or, eor, and
-            #                if registers[self.rdarray[pccounter]] < 0 and registers[self.rnarray[pccounter]] < 0:
-            #                    print "eor - they are both negative\n"
-            #               elif registers[self.rdarray[pccounter]] < 0 or registers[self.rnarray[pccounter]] < 0:
-            #                    print "eor - one is negative\n"
-            #                else:
-            #                    print "eor - both positive\n"
-            if self.instructions[pccounter] == 'ADD':
-                registers[self.rdarray[pccounter]] = registers[self.rnarray[pccounter]]\
-                                                     + registers[self.rmarray[pccounter]]
-            elif self.instructions[pccounter] == 'SUB':
-                registers[self.rdarray[pccounter]] = registers[self.rnarray[pccounter]]\
-                                                     - registers[self.rmarray[pccounter]]
-            elif self.instructions[pccounter] == 'AND':
-                registers[self.rdarray[pccounter]] = registers[self.rnarray[pccounter]]\
-                                                     & registers[self.rmarray[pccounter]]
-            elif self.instructions[pccounter] == 'ORR':
-                registers[self.rdarray[pccounter]] = registers[self.rnarray[pccounter]]\
-                                                     | registers[self.rmarray[pccounter]]
-            elif self.instructions[pccounter] == 'EOR':
-                registers[self.rdarray[pccounter]] = registers[self.rnarray[pccounter]]\
-                                                     ^ registers[self.rmarray[pccounter]]
-            elif self.instructions[pccounter] == 'LSL':
-                registers[self.rdarray[pccounter]] = registers[self.rnarray[pccounter]] << self.shamtarray[pccounter]
-            elif self.instructions[pccounter] == 'LSR':
-                registers[self.rdarray[pccounter]] = registers[self.rnarray[pccounter]] >> self.shamtarray[pccounter]
-            elif self.instructions[pccounter] == 'ASR':
-                if registers[self.rdarray[pccounter]] < 0:
-                    registers[self.rdarray[pccounter]] =\
-                        0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF >> self.shamtarray[pccounter]
-                    registers[self.rdarray[pccounter]] +=\
-                        registers[self.rnarray[pccounter]] >> self.shamtarray[pccounter]
-                else:
-                    registers[self.rdarray[pccounter]] =\
-                        registers[self.rnarray[pccounter]] >> self.shamtarray[pccounter]
-# I-> rdarray[], rnarray[], immarray[]
-            elif self.instructions[pccounter] == 'ADDI':
-                registers[self.rdarray[pccounter]] = registers[self.rnarray[pccounter]] + self.immarray[pccounter]
-            elif self.instructions[pccounter] == 'SUBI':
-                registers[self.rdarray[pccounter]] = registers[self.rnarray[pccounter]] - self.immarray[pccounter]
-# D-> rdarray[], rnarray[], addrarray[]
-            elif self.instructions[pccounter] == 'LDUR':
-                jumpaddress = registers[self.rnarray[pccounter]] + self.addrarray[pccounter]
-                if jumpaddress in self.datasegment:
-                    registers[self.rdarray[pccounter]] = self.datasegment[jumpaddress]
-                else:
-                    registers[self.rdarray[pccounter]] = 0
-            elif self.instructions[pccounter] == 'STUR':
-                jumpaddress = registers[self.rnarray[pccounter]] + self.addrarray[pccounter]
-                self.datasegment[jumpaddress] = registers[self.rdarray[pccounter]]
-                if jumpaddress > self.dataendindex:
-                    self.dataendindex = jumpaddress
-# IM-> rdarray[], immarray[], shamtarray[]
-            elif self.instructions[pccounter] == 'MOVZ':
-                registers[self.rdarray[pccounter]] = self.immarray[pccounter] << self.shamtarray[pccounter]
-            elif self.instructions[pccounter] == 'MOVK':
-                keepvalue = 0
-                if self.shamtarray[pccounter] == 0:
-                    keepvalue = registers[self.rdarray[pccounter]] & 0xFFFFFFFFFFFF0000
-                elif self.shamtarray[pccounter] == 16:
-                    keepvalue = registers[self.rdarray[pccounter]] & 0xFFFFFFFF0000FFFF
-                elif self.shamtarray[pccounter] == 32:
-                    keepvalue = registers[self.rdarray[pccounter]] & 0xFFFF0000FFFFFFFF
-                elif self.shamtarray[pccounter] == 48:
-                    keepvalue = registers[self.rdarray[pccounter]] & 0x0000FFFFFFFFFFFF
-                keepvalue += self.immarray[pccounter] << self.shamtarray[pccounter]
-                registers[self.rdarray[pccounter]] = keepvalue
-# B-> addrarray[]
-            elif self.instructions[pccounter] == 'B':
-                pccounter += self.addrarray[pccounter]
-                takebranch = 1
-# CB-> rdarray[], offsarray[]
-            elif self.instructions[pccounter] == 'CBZ' and registers[self.rdarray[pccounter]] == 0:
-                pccounter += self.offsarray[pccounter]
-                takebranch = 1
-            elif self.instructions[pccounter] == 'CBNZ' and registers[self.rdarray[pccounter]] != 0:
-                pccounter += self.offsarray[pccounter]
-                takebranch = 1
-            if not takebranch:
-                pccounter += 1
-# gather register info
-            outline += "\n\nregisters:\nr00:\t" + str(registers[0]) + "\t" + str(registers[1]) + "\t"
-            outline += str(registers[2]) + "\t" + str(registers[3]) + "\t" + str(registers[4]) + "\t"
-            outline += str(registers[5]) + "\t" + str(registers[6]) + "\t" + str(registers[7]) + "\n"
-            outline += "r08:\t" + str(registers[8]) + "\t" + str(registers[9]) + "\t"
-            outline += str(registers[10]) + "\t" + str(registers[11]) + "\t" + str(registers[12]) + "\t"
-            outline += str(registers[13]) + "\t" + str(registers[14]) + "\t" + str(registers[15]) + "\n"
-            outline += "r16:\t" + str(registers[16]) + "\t" + str(registers[17]) + "\t"
-            outline += str(registers[18]) + "\t" + str(registers[19]) + "\t" + str(registers[20]) + "\t"
-            outline += str(registers[21]) + "\t" + str(registers[22]) + "\t" + str(registers[23]) + "\n"
-            outline += "r24:\t" + str(registers[24]) + "\t" + str(registers[25]) + "\t"
-            outline += str(registers[26]) + "\t" + str(registers[27]) + "\t" + str(registers[28]) + "\t"
-            outline += str(registers[29]) + "\t" + str(registers[30]) + "\t" + str(registers[31]) + "\n\n"
-# add data, if exists
-            if self.dataendindex is not None:
-                outline += "data:\n"
-                datacounter = (self.datastartindex * 4) + 96
-                while datacounter <= self.dataendindex:
-                    outline += str(datacounter) + ": "
-                    donewline = 0
-                    while donewline <= 32:
-                        if donewline:
-                            outline += "\t"
-                        if (datacounter+donewline) in self.datasegment:
-                            outline += str(self.datasegment[datacounter+donewline])
-                        else:
-                            outline += "0"
-                        donewline += 4
-                    datacounter += 32
-                    outline += "\n"
-# end row, print
-            print outline
-
 
 #  function called when script ran from command line and acts as a disassembler for machine code
 #  then iterates through machine code producing output stepping through the disassembly
@@ -383,7 +391,7 @@ if __name__ == "__main__":
             outputFileName = sys.argv[i + 1]
     decompiled = Decompiler()
     decompiled.run(inputFileName, outputFileName)
-    decompiled.emulator()
+    Emulator.run(decompiled)
 
 
 
