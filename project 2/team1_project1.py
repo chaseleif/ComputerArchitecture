@@ -129,7 +129,7 @@ class Emulator:
                     while donewline < 32:
                         outline += "\t"
                         if (datacounter + donewline) in asm.datasegment:
-                            outline += str(asm.datasegment[datacounter + donewline])
+                            outline += str(int(asm.datasegment[datacounter + donewline]))
                         else:
                             outline += "0"
                         donewline += 4
@@ -382,8 +382,8 @@ class Decompiler:
 
 #  function called when script ran from command line and acts as a disassembler for machine code
 #  then iterates through machine code producing output stepping through the disassembly
-#  ran in the form: $ python team1_project1.py -i test3_bin.txt -o team1_out_dis.txt
-#  where test3_bin.txt is the input machine code text file that is read and team1_out_dis.txt is the dis output
+#  ran in the form: $ python team1_project1.py -i test3_bin.txt -o team1
+#  where test3_bin.txt is the input machine code text file that is read and team1 is the prefix for file output
 if __name__ == "__main__":
     inputFileName = None
     outputFileName = None
