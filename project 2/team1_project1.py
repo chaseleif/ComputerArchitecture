@@ -1,5 +1,5 @@
 #!/usr/bin/python
-#  team1_project1.py
+#  team1_project2.py
 #  Chase Phelps and Trenton Hohle
 #  clp186           tah138
 #  part one: this converts some machine code into LEGv8 asm
@@ -20,9 +20,9 @@ class Emulator:
         pccounter = 0
         registers = [0] * 32
 
-        outfile = open(asm.outfileprefix + "_sim.txt", 'w')
+        outfile = open(asm.outfileprefix + "_pipeline.txt", 'w')
 
-        while asm.instructionformat[pccounter] != 'BR':
+        while True:
             cyclecounter += 1
             outline = "====================\n"
             outline += "cycle: " + str(cyclecounter) + "\t" + str((pccounter * 4) + 96) + "\t"
@@ -52,7 +52,7 @@ class Emulator:
                 registers[asm.rdarray[pccounter]] = registers[asm.rnarray[pccounter]] >> asm.shamtarray[
                     pccounter]
             elif asm.instructions[pccounter] == 'ASR':
-                if registers[asm.rdarray[pccounter]] < 0:
+                if registers[asm.rnarray[pccounter]] < 0:
                     registers[asm.rdarray[pccounter]] = \
                         0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF >> asm.shamtarray[pccounter]
                     registers[asm.rdarray[pccounter]] += \
@@ -103,7 +103,7 @@ class Emulator:
             elif asm.instructions[pccounter] == 'CBNZ' and registers[asm.rdarray[pccounter]] != 0:
                 pccounter += asm.offsarray[pccounter]
                 takebranch = 1
-            if not takebranch:
+            if not takebranch and asm.instructions[pccounter] != 'BR':
                 pccounter += 1
             # gather register info
             outline += "\n\nregisters:\nr00:\t" + str(registers[0]) + "\t" + str(registers[1]) + "\t"
@@ -118,16 +118,16 @@ class Emulator:
             outline += "r24:\t" + str(registers[24]) + "\t" + str(registers[25]) + "\t"
             outline += str(registers[26]) + "\t" + str(registers[27]) + "\t" + str(registers[28]) + "\t"
             outline += str(registers[29]) + "\t" + str(registers[30]) + "\t" + str(registers[31]) + "\n\n"
+
+            outline += "data:\n"
             # add data, if exists
             if asm.dataendindex is not None:
-                outline += "data:\n"
                 datacounter = (asm.datastartindex * 4) + 96
                 while datacounter <= asm.dataendindex:
-                    outline += str(datacounter) + ": "
+                    outline += str(datacounter) + ":"
                     donewline = 0
-                    while donewline <= 32:
-                        if donewline:
-                            outline += "\t"
+                    while donewline < 32:
+                        outline += "\t"
                         if (datacounter + donewline) in asm.datasegment:
                             outline += str(asm.datasegment[datacounter + donewline])
                         else:
@@ -135,10 +135,14 @@ class Emulator:
                         donewline += 4
                     datacounter += 32
                     outline += "\n"
+                outline = outline[:-1]
+            else:
+                outline += "\n"
             # end row, print
             print >> outfile, outline
+            if asm.instructionformat[pccounter-1] == 'BR':
+                break
         outfile.close()
-
 
 
 class Decompiler:
@@ -203,24 +207,24 @@ class Decompiler:
                 self.instructionformat[i] = 'R'
                 self.rdarray[i] = int(fullmachinecode[i], 2) & 0x1F
                 self.rnarray[i] = (int(fullmachinecode[i], 2) >> 5) & 0x1F
-                if 1690 <= self.opcodes[i] <= 1691:
+                if 1690 <= self.opcodes[i] <= 1692:
                     self.shamtarray[i] = (int(fullmachinecode[i], 2) >> 10) & 0x3F
                     if self.opcodes[i] == 1690:
                         self.instructions[i] = 'LSR'
+                    elif self.opcodes[i] == 1691:
+                        self.instructions[i] = 'LSL'
                     elif self.opcodes[i] == 1692:
                         self.instructions[i] = 'ASR'
-                    else:
-                        self.instructions[i] = 'LSL'
                 else:
                     self.rmarray[i] = (int(fullmachinecode[i], 2) >> 16) & 0x1F
-                    if self.opcodes[i] == 1112:
-                        self.instructions[i] = 'ADD'
-                    elif self.opcodes[i] == 1624:
-                        self.instructions[i] = 'SUB'
-                    elif self.opcodes[i] == 1104:
+                    if self.opcodes[i] == 1104:
                         self.instructions[i] = 'AND'
+                    elif self.opcodes[i] == 1112:
+                        self.instructions[i] = 'ADD'
                     elif self.opcodes[i] == 1360:
                         self.instructions[i] = 'ORR'
+                    elif self.opcodes[i] == 1624:
+                        self.instructions[i] = 'SUB'
                     else:
                         self.instructions[i] = 'EOR'
 # I - immediates
