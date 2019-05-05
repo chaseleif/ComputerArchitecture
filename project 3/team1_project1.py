@@ -177,14 +177,23 @@ class Cache:
 # self.fetchnext is set on a Cache miss (no success) from class fetch() and store() methods
     def run(self):
         if self.fetchnext is not None:
+            # double-word boundary for line to get
+            if (self.fetchnext >> 2) & 1 > 0:
+                self.fetchnext -= 4
             # cache has not yet been filled
             if not self.full:
                 for i in range(0, 4):
                     # this is the next spot in the cache
                     if not self.cache[i][0].valid:
                         self.cache[i][0].tag = self.fetchnext >> 3
-                        self.cache[i][0].word = self.disk[self.fetchnext]
-                        self.cache[i][1].word = self.disk[self.fetchnext+4]
+                        if self.fetchnext in self.disk:
+                            self.cache[i][0].word = self.disk[self.fetchnext]
+                        else:
+                            self.cache[i][0].word = int("0", 2)
+                        if self.fetchnext+4 in self.disk:
+                            self.cache[i][1].word = self.disk[self.fetchnext+4]
+                        else:
+                            self.cache[i][1].word = int("0", 2)
                         self.cache[i][0].valid = 1
                         self.cache[i][1].valid = 1
                         if i == 3:
@@ -204,8 +213,12 @@ class Cache:
                             self.dataend = writeaddy
                 # remove the oldest in the cache and append a new
                 del self.cache[0]
-                self.cache.append(CacheLine(self.fetchnext >> 3, self.disk[self.fetchnext]),
-                                  CacheLine(self.fetchnext >> 3, self.disk[self.fetchnext+4]))
+                newline = [CacheLine(self.fetchnext >> 3, 0), CacheLine(self.fetchnext >> 3, 0)]
+                if self.fetchnext in self.disk:
+                    newline[0].word = self.disk[self.fetchnext]
+                if self.fetchnext+4 in self.disk:
+                    newline[1].word = self.disk[self.fetchnext+4]
+                self.cache.append(newline)
             self.fetchnext = None
 
 # 96 = 1100000 ... 100 = 1100100
