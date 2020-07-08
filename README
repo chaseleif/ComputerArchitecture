@@ -1,0 +1,2 @@
+Limited asm emulator written in Python.
+Reads binary, converts to asm, emulates pipelined execution.
